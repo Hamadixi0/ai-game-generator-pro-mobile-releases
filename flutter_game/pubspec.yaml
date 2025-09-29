@@ -1,6 +1,6 @@
 name: ai_game_generator_pro
-description: Complete AI-powered mobile game with professional architecture and GitHub Releases
-version: 1.0.0+1
+description: Complete AI-powered mobile game - KEYSTORE ISSUE FIXED
+version: 1.0.1+2
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
