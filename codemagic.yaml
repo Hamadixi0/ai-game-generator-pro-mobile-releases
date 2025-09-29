@@ -3,14 +3,9 @@ workflows:
     name: Flutter Mobile App Build with GitHub Releases
     max_build_duration: 120
     instance_type: mac_mini_m1
-    integrations:
-      app_store_connect: codemagic
     environment:
       android_signing:
         - keystore_reference
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.hamadixi.aigamegeneratorpro
       flutter: stable
       java: 17
       vars:
@@ -40,15 +35,11 @@ workflows:
         script: |
           cd flutter_game
           flutter build appbundle --release
-      - name: Build iOS with Flutter
+      - name: Build iOS with Flutter (unsigned)
         script: |
           cd flutter_game
           flutter build ios --release --no-codesign
-      - name: Build IPA
-        script: |
-          cd flutter_game
-          flutter build ipa --release
-      - name: Create GitHub Release with APK/iOS Upload
+      - name: Create GitHub Release with APK Upload
         script: |
           # Get version from pubspec.yaml
           VERSION=$(grep '^version:' flutter_game/pubspec.yaml | cut -d ' ' -f 2 | cut -d '+' -f 1)
@@ -58,12 +49,12 @@ workflows:
           RELEASE_RESPONSE=$(curl -s -X POST \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/Hamadixi0/ai-game-generator-pro-mobile-releases/releases \
+            https://api.github.com/repos/$REPO_FULLNAME/releases \
             -d "{
               \"tag_name\": \"v$VERSION-build-$CM_BUILD_ID\",
               \"target_commitish\": \"main\",
               \"name\": \"🎮 AI Game Generator Pro v$VERSION (Build $CM_BUILD_ID)\",
-              \"body\": \"🎮 **AI Game Generator Pro Mobile Release**\\n\\n📱 **What's Included:**\\n- ✅ **Android APK** (Ready to install on Android devices)\\n- ✅ **Android AAB** (Google Play Store ready)\\n- ✅ **iOS IPA** (App Store/TestFlight ready)\\n\\n🚀 **Features:**\\n- Complete Flutter game with Flame engine\\n- Touch controls and collision detection\\n- Professional mobile game architecture\\n- Score tracking and game mechanics\\n- Responsive design for all screen sizes\\n\\n📦 **Build Information:**\\n- **Build ID:** $CM_BUILD_ID\\n- **Flutter Version:** $(flutter --version | head -n 1)\\n- **Build Date:** $BUILD_DATE\\n- **Platform:** iOS + Android\\n\\n📲 **Installation Instructions:**\\n1. **Android:** Download the APK file below and install on your device\\n2. **iOS:** Download IPA for TestFlight or App Store deployment\\n\\n**🎯 Download the APK below to play the game on Android!**\",
+              \"body\": \"🎮 **AI Game Generator Pro Mobile Release**\\n\\n📱 **What's Included:**\\n- ✅ **Android APK** (Ready to install on Android devices)\\n- ✅ **Android AAB** (Google Play Store ready)\\n- ✅ **iOS Build** (Unsigned iOS build files)\\n\\n🚀 **Features:**\\n- Complete Flutter game with Flame engine\\n- Touch controls and collision detection\\n- Professional mobile game architecture\\n- Score tracking and game mechanics\\n- Responsive design for all screen sizes\\n\\n📦 **Build Information:**\\n- **Build ID:** $CM_BUILD_ID\\n- **Flutter Version:** $(flutter --version | head -n 1)\\n- **Build Date:** $BUILD_DATE\\n- **Platform:** iOS + Android\\n\\n📲 **Installation Instructions:**\\n1. **Android:** Download the APK file below and install on your device\\n2. **iOS:** Use the unsigned build for development/testing\\n\\n**🎯 Download the APK below to play the game on Android!**\",
               \"draft\": false,
               \"prerelease\": false
             }")
@@ -78,7 +69,7 @@ workflows:
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Content-Type: application/vnd.android.package-archive" \
             --data-binary @flutter_game/build/app/outputs/flutter-apk/app-release.apk \
-            "https://uploads.github.com/repos/Hamadixi0/ai-game-generator-pro-mobile-releases/releases/$RELEASE_ID/assets?name=AIGameGeneratorPro-v$VERSION-Android.apk"
+            "https://uploads.github.com/repos/$REPO_FULLNAME/releases/$RELEASE_ID/assets?name=AIGameGeneratorPro-v$VERSION-Android.apk"
           
           # Upload AAB to GitHub Release
           echo "Uploading AAB to GitHub Release..."
@@ -86,26 +77,14 @@ workflows:
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Content-Type: application/octet-stream" \
             --data-binary @flutter_game/build/app/outputs/bundle/release/app-release.aab \
-            "https://uploads.github.com/repos/Hamadixi0/ai-game-generator-pro-mobile-releases/releases/$RELEASE_ID/assets?name=AIGameGeneratorPro-v$VERSION-GooglePlay.aab"
-          
-          # Upload IPA if exists
-          if [ -f flutter_game/build/ios/ipa/*.ipa ]; then
-            echo "Uploading IPA to GitHub Release..."
-            IPA_FILE=$(ls flutter_game/build/ios/ipa/*.ipa | head -n 1)
-            curl -X POST \
-              -H "Authorization: token $GITHUB_TOKEN" \
-              -H "Content-Type: application/octet-stream" \
-              --data-binary @"$IPA_FILE" \
-              "https://uploads.github.com/repos/Hamadixi0/ai-game-generator-pro-mobile-releases/releases/$RELEASE_ID/assets?name=AIGameGeneratorPro-v$VERSION-iOS.ipa"
-          fi
+            "https://uploads.github.com/repos/$REPO_FULLNAME/releases/$RELEASE_ID/assets?name=AIGameGeneratorPro-v$VERSION-GooglePlay.aab"
           
           echo "✅ GitHub Release created successfully with all mobile app files!"
-          echo "🔗 Release URL: https://github.com/Hamadixi0/ai-game-generator-pro-mobile-releases/releases/tag/v$VERSION-build-$CM_BUILD_ID"
+          echo "🔗 Release URL: https://github.com/$REPO_FULLNAME/releases/tag/v$VERSION-build-$CM_BUILD_ID"
     artifacts:
       - flutter_game/build/app/outputs/flutter-apk/*.apk
       - flutter_game/build/app/outputs/bundle/release/*.aab
-      - flutter_game/build/ios/ipa/*.ipa
-      - flutter_game/build/ios/Runner.app
+      - flutter_game/build/ios/Release-iphoneos/Runner.app
     publishing:
       email:
         recipients:
@@ -113,13 +92,3 @@ workflows:
         notify:
           success: true
           failure: true
-      google_play:
-        credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
-        track: internal
-        submit_as_draft: true
-      app_store_connect:
-        auth: integration
-        submit_to_testflight: true
-        beta_groups:
-          - App Store Connect Users
-        submit_to_app_store: false
